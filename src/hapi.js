@@ -2,7 +2,7 @@
 
 /**
  * Unobtrusive scripting adapter for jQuery
- * https://github.com/rails/jquery-ujs
+ * https://github.com/hapi/jquery-ujs
  *
  * Requires jQuery 1.8.0 or later.
  *
@@ -12,15 +12,15 @@
 
   // Cut down on the number of issues from people inadvertently including jquery_ujs twice
   // by detecting and raising an error when it happens.
-  if ( $.rails !== undefined ) {
+  if ( $.hapi !== undefined ) {
     $.error('jquery-ujs has already been loaded!');
   }
 
-  // Shorthand to make it a little easier to call public rails functions from within rails.js
-  var rails;
+  // Shorthand to make it a little easier to call public hapi functions from within hapi.js
+  var hapi;
   var $document = $(document);
 
-  $.rails = rails = {
+  $.hapi = hapi = {
     // Link elements bound by jquery-ujs
     linkClickSelector: 'a[data-confirm], a[data-method], a[data-remote], a[data-disable-with], a[data-disable]',
 
@@ -74,17 +74,17 @@
       return event.result !== false;
     },
 
-    // Default confirm dialog, may be overridden with custom confirm dialog in $.rails.confirm
+    // Default confirm dialog, may be overridden with custom confirm dialog in $.hapi.confirm
     confirm: function(message) {
       return confirm(message);
     },
 
-    // Default ajax function, may be overridden with custom function in $.rails.ajax
+    // Default ajax function, may be overridden with custom function in $.hapi.ajax
     ajax: function(options) {
       return $.ajax(options);
     },
 
-    // Default way to get an element's href. May be overridden at $.rails.href.
+    // Default way to get an element's href. May be overridden at $.hapi.href.
     href: function(element) {
       return element.attr('href');
     },
@@ -93,7 +93,7 @@
     handleRemote: function(element) {
       var method, url, data, elCrossDomain, crossDomain, withCredentials, dataType, options;
 
-      if (rails.fire(element, 'ajax:before')) {
+      if (hapi.fire(element, 'ajax:before')) {
         elCrossDomain = element.data('cross-domain');
         crossDomain = elCrossDomain === undefined ? null : elCrossDomain;
         withCredentials = element.data('with-credentials') || null;
@@ -109,19 +109,19 @@
             data.push(button);
             element.data('ujs:submit-button', null);
           }
-        } else if (element.is(rails.inputChangeSelector)) {
+        } else if (element.is(hapi.inputChangeSelector)) {
           method = element.data('method');
           url = element.data('url');
           data = element.serialize();
           if (element.data('params')) data = data + "&" + element.data('params');
-        } else if (element.is(rails.buttonClickSelector)) {
+        } else if (element.is(hapi.buttonClickSelector)) {
           method = element.data('method') || 'get';
           url = element.data('url');
           data = element.serialize();
           if (element.data('params')) data = data + "&" + element.data('params');
         } else {
           method = element.data('method');
-          url = rails.href(element);
+          url = hapi.href(element);
           data = element.data('params') || null;
         }
 
@@ -132,7 +132,7 @@
             if (settings.dataType === undefined) {
               xhr.setRequestHeader('accept', '*/*;q=0.5, ' + settings.accepts.script);
             }
-            if (rails.fire(element, 'ajax:beforeSend', [xhr, settings])) {
+            if (hapi.fire(element, 'ajax:beforeSend', [xhr, settings])) {
               element.trigger('ajax:send', xhr);
             } else {
               return false;
@@ -161,7 +161,7 @@
         // Only pass url to `ajax` options if not blank
         if (url) { options.url = url; }
 
-        return rails.ajax(options);
+        return hapi.ajax(options);
       } else {
         return false;
       }
@@ -170,7 +170,7 @@
     // Handles "data-method" on links such as:
     // <a href="/users/5" data-method="delete" rel="nofollow" data-confirm="Are you sure?">Delete</a>
     handleMethod: function(link) {
-      var href = rails.href(link),
+      var href = hapi.href(link),
         method = link.data('method'),
         target = link.attr('target'),
         csrfToken = $('meta[name=csrf-token]').attr('content'),
@@ -201,8 +201,8 @@
       - Sets disabled property to true
     */
     disableFormElements: function(form) {
-      rails.formElements(form, rails.disableSelector).each(function() {
-        rails.disableFormElement($(this));
+      hapi.formElements(form, hapi.disableSelector).each(function() {
+        hapi.disableFormElement($(this));
       });
     },
 
@@ -225,8 +225,8 @@
       - Sets disabled property to false
     */
     enableFormElements: function(form) {
-      rails.formElements(form, rails.enableSelector).each(function() {
-        rails.enableFormElement($(this));
+      hapi.formElements(form, hapi.enableSelector).each(function() {
+        hapi.enableFormElement($(this));
       });
     },
 
@@ -251,9 +251,9 @@
           answer = false, callback;
       if (!message) { return true; }
 
-      if (rails.fire(element, 'confirm')) {
-        answer = rails.confirm(message);
-        callback = rails.fire(element, 'confirm:complete', [answer]);
+      if (hapi.fire(element, 'confirm')) {
+        answer = hapi.confirm(message);
+        callback = hapi.fire(element, 'confirm:complete', [answer]);
       }
       return answer && callback;
     },
@@ -283,7 +283,7 @@
 
     // Helper function which checks for non-blank inputs in a form that match the specified CSS selector
     nonBlankInputs: function(form, specifiedSelector) {
-      return rails.blankInputs(form, specifiedSelector, true); // true specifies nonBlank
+      return hapi.blankInputs(form, specifiedSelector, true); // true specifies nonBlank
     },
 
     // Helper function, needed to provide consistent behavior in IE
@@ -303,8 +303,8 @@
         element.html(replacement);
       }
 
-      element.bind('click.railsDisable', function(e) { // prevent further clicking
-        return rails.stopEverything(e);
+      element.bind('click.hapiDisable', function(e) { // prevent further clicking
+        return hapi.stopEverything(e);
       });
     },
 
@@ -314,113 +314,113 @@
         element.html(element.data('ujs:enable-with')); // set to old enabled state
         element.removeData('ujs:enable-with'); // clean up cache
       }
-      element.unbind('click.railsDisable'); // enable element
+      element.unbind('click.hapiDisable'); // enable element
     }
   };
 
-  if (rails.fire($document, 'rails:attachBindings')) {
+  if (hapi.fire($document, 'hapi:attachBindings')) {
 
-    $.ajaxPrefilter(function(options, originalOptions, xhr){ if ( !options.crossDomain ) { rails.CSRFProtection(xhr); }});
+    $.ajaxPrefilter(function(options, originalOptions, xhr){ if ( !options.crossDomain ) { hapi.CSRFProtection(xhr); }});
 
-    $document.delegate(rails.linkDisableSelector, 'ajax:complete', function() {
-        rails.enableElement($(this));
+    $document.delegate(hapi.linkDisableSelector, 'ajax:complete', function() {
+        hapi.enableElement($(this));
     });
 
-    $document.delegate(rails.buttonDisableSelector, 'ajax:complete', function() {
-        rails.enableFormElement($(this));
+    $document.delegate(hapi.buttonDisableSelector, 'ajax:complete', function() {
+        hapi.enableFormElement($(this));
     });
 
-    $document.delegate(rails.linkClickSelector, 'click.rails', function(e) {
+    $document.delegate(hapi.linkClickSelector, 'click.hapi', function(e) {
       var link = $(this), method = link.data('method'), data = link.data('params'), metaClick = e.metaKey || e.ctrlKey;
-      if (!rails.allowAction(link)) return rails.stopEverything(e);
+      if (!hapi.allowAction(link)) return hapi.stopEverything(e);
 
-      if (!metaClick && link.is(rails.linkDisableSelector)) rails.disableElement(link);
+      if (!metaClick && link.is(hapi.linkDisableSelector)) hapi.disableElement(link);
 
       if (link.data('remote') !== undefined) {
         if (metaClick && (!method || method === 'GET') && !data) { return true; }
 
-        var handleRemote = rails.handleRemote(link);
-        // response from rails.handleRemote() will either be false or a deferred object promise.
+        var handleRemote = hapi.handleRemote(link);
+        // response from hapi.handleRemote() will either be false or a deferred object promise.
         if (handleRemote === false) {
-          rails.enableElement(link);
+          hapi.enableElement(link);
         } else {
-          handleRemote.error( function() { rails.enableElement(link); } );
+          handleRemote.error( function() { hapi.enableElement(link); } );
         }
         return false;
 
       } else if (link.data('method')) {
-        rails.handleMethod(link);
+        hapi.handleMethod(link);
         return false;
       }
     });
 
-    $document.delegate(rails.buttonClickSelector, 'click.rails', function(e) {
+    $document.delegate(hapi.buttonClickSelector, 'click.hapi', function(e) {
       var button = $(this);
-      if (!rails.allowAction(button)) return rails.stopEverything(e);
+      if (!hapi.allowAction(button)) return hapi.stopEverything(e);
 
-      if (button.is(rails.buttonDisableSelector)) rails.disableFormElement(button);
+      if (button.is(hapi.buttonDisableSelector)) hapi.disableFormElement(button);
 
-      var handleRemote = rails.handleRemote(button);
-      // response from rails.handleRemote() will either be false or a deferred object promise.
+      var handleRemote = hapi.handleRemote(button);
+      // response from hapi.handleRemote() will either be false or a deferred object promise.
       if (handleRemote === false) {
-        rails.enableFormElement(button);
+        hapi.enableFormElement(button);
       } else {
-        handleRemote.error( function() { rails.enableFormElement(button); } );
+        handleRemote.error( function() { hapi.enableFormElement(button); } );
       }
       return false;
     });
 
-    $document.delegate(rails.inputChangeSelector, 'change.rails', function(e) {
+    $document.delegate(hapi.inputChangeSelector, 'change.hapi', function(e) {
       var link = $(this);
-      if (!rails.allowAction(link)) return rails.stopEverything(e);
+      if (!hapi.allowAction(link)) return hapi.stopEverything(e);
 
-      rails.handleRemote(link);
+      hapi.handleRemote(link);
       return false;
     });
 
-    $document.delegate(rails.formSubmitSelector, 'submit.rails', function(e) {
+    $document.delegate(hapi.formSubmitSelector, 'submit.hapi', function(e) {
       var form = $(this),
         remote = form.data('remote') !== undefined,
         blankRequiredInputs,
         nonBlankFileInputs;
 
-      if (!rails.allowAction(form)) return rails.stopEverything(e);
+      if (!hapi.allowAction(form)) return hapi.stopEverything(e);
 
       // skip other logic when required values are missing or file upload is present
       if (form.attr('novalidate') == undefined) {
-        blankRequiredInputs = rails.blankInputs(form, rails.requiredInputSelector);
-        if (blankRequiredInputs && rails.fire(form, 'ajax:aborted:required', [blankRequiredInputs])) {
-          return rails.stopEverything(e);
+        blankRequiredInputs = hapi.blankInputs(form, hapi.requiredInputSelector);
+        if (blankRequiredInputs && hapi.fire(form, 'ajax:aborted:required', [blankRequiredInputs])) {
+          return hapi.stopEverything(e);
         }
       }
 
       if (remote) {
-        nonBlankFileInputs = rails.nonBlankInputs(form, rails.fileInputSelector);
+        nonBlankFileInputs = hapi.nonBlankInputs(form, hapi.fileInputSelector);
         if (nonBlankFileInputs) {
           // slight timeout so that the submit button gets properly serialized
           // (make it easy for event handler to serialize form without disabled values)
-          setTimeout(function(){ rails.disableFormElements(form); }, 13);
-          var aborted = rails.fire(form, 'ajax:aborted:file', [nonBlankFileInputs]);
+          setTimeout(function(){ hapi.disableFormElements(form); }, 13);
+          var aborted = hapi.fire(form, 'ajax:aborted:file', [nonBlankFileInputs]);
 
           // re-enable form elements if event bindings return false (canceling normal form submission)
-          if (!aborted) { setTimeout(function(){ rails.enableFormElements(form); }, 13); }
+          if (!aborted) { setTimeout(function(){ hapi.enableFormElements(form); }, 13); }
 
           return aborted;
         }
 
-        rails.handleRemote(form);
+        hapi.handleRemote(form);
         return false;
 
       } else {
         // slight timeout so that the submit button gets properly serialized
-        setTimeout(function(){ rails.disableFormElements(form); }, 13);
+        setTimeout(function(){ hapi.disableFormElements(form); }, 13);
       }
     });
 
-    $document.delegate(rails.formInputClickSelector, 'click.rails', function(event) {
+    $document.delegate(hapi.formInputClickSelector, 'click.hapi', function(event) {
       var button = $(this);
 
-      if (!rails.allowAction(button)) return rails.stopEverything(event);
+      if (!hapi.allowAction(button)) return hapi.stopEverything(event);
 
       // register the pressed submit button
       var name = button.attr('name'),
@@ -429,16 +429,16 @@
       button.closest('form').data('ujs:submit-button', data);
     });
 
-    $document.delegate(rails.formSubmitSelector, 'ajax:send.rails', function(event) {
-      if (this == event.target) rails.disableFormElements($(this));
+    $document.delegate(hapi.formSubmitSelector, 'ajax:send.hapi', function(event) {
+      if (this == event.target) hapi.disableFormElements($(this));
     });
 
-    $document.delegate(rails.formSubmitSelector, 'ajax:complete.rails', function(event) {
-      if (this == event.target) rails.enableFormElements($(this));
+    $document.delegate(hapi.formSubmitSelector, 'ajax:complete.hapi', function(event) {
+      if (this == event.target) hapi.enableFormElements($(this));
     });
 
     $(function(){
-      rails.refreshCSRFTokens();
+      hapi.refreshCSRFTokens();
     });
   }
 
