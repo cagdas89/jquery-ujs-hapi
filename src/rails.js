@@ -56,14 +56,14 @@
 
     // Make sure that every Ajax request sends the CSRF token
     CSRFProtection: function(xhr) {
-      var token = $('meta[name="csrf-token"]').attr('content');
+      var token = $('meta[name="crumb-token"]').attr('content');
       if (token) xhr.setRequestHeader('X-CSRF-Token', token);
     },
 
     // making sure that all forms have actual up-to-date token(cached forms contain old one)
     refreshCSRFTokens: function(){
-      var csrfToken = $('meta[name=csrf-token]').attr('content');
-      var csrfParam = $('meta[name=csrf-param]').attr('content');
+      var csrfToken = $('meta[name=crumb-token]').attr('content');
+      var csrfParam = $('meta[name=crumb-param]').attr('content');
       $('form input[name="' + csrfParam + '"]').val(csrfToken);
     },
 
