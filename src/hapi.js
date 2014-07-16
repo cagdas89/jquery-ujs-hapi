@@ -1,445 +1,502 @@
-(function($, undefined) {
+(function ($, undefined) {
 
-/**
- * Unobtrusive scripting adapter for jQuery
- * https://github.com/hapi/jquery-ujs
- *
- * Requires jQuery 1.8.0 or later.
- *
- * Released under the MIT license
- *
- */
+    /**
+     * Unobtrusive scripting adapter for jQuery
+     * https://github.com/hapi/jquery-ujs
+     *
+     * Requires jQuery 1.8.0 or later.
+     *
+     * Released under the MIT license
+     *
+     */
 
-  // Cut down on the number of issues from people inadvertently including jquery_ujs twice
-  // by detecting and raising an error when it happens.
-  if ( $.hapi !== undefined ) {
-    $.error('jquery-ujs has already been loaded!');
-  }
-
-  // Shorthand to make it a little easier to call public hapi functions from within hapi.js
-  var hapi;
-  var $document = $(document);
-
-  $.hapi = hapi = {
-    // Link elements bound by jquery-ujs
-    linkClickSelector: 'a[data-confirm], a[data-method], a[data-remote], a[data-disable-with], a[data-disable]',
-
-    // Button elements bound by jquery-ujs
-    buttonClickSelector: 'button[data-remote], button[data-confirm]',
-
-    // Select elements bound by jquery-ujs
-    inputChangeSelector: 'select[data-remote], input[data-remote], textarea[data-remote]',
-
-    // Form elements bound by jquery-ujs
-    formSubmitSelector: 'form',
-
-    // Form input elements bound by jquery-ujs
-    formInputClickSelector: 'form input[type=submit], form input[type=image], form button[type=submit], form button:not([type]), input[type=submit][form], input[type=image][form], button[type=submit][form], button[form]:not([type])',
-
-    // Form input elements disabled during form submission
-    disableSelector: 'input[data-disable-with]:enabled, button[data-disable-with]:enabled, textarea[data-disable-with]:enabled, input[data-disable]:enabled, button[data-disable]:enabled, textarea[data-disable]:enabled',
-
-    // Form input elements re-enabled after form submission
-    enableSelector: 'input[data-disable-with]:disabled, button[data-disable-with]:disabled, textarea[data-disable-with]:disabled, input[data-disable]:disabled, button[data-disable]:disabled, textarea[data-disable]:disabled',
-
-    // Form required input elements
-    requiredInputSelector: 'input[name][required]:not([disabled]),textarea[name][required]:not([disabled])',
-
-    // Form file input elements
-    fileInputSelector: 'input[type=file]',
-
-    // Link onClick disable selector with possible reenable after remote submission
-    linkDisableSelector: 'a[data-disable-with], a[data-disable]',
-
-    // Button onClick disable selector with possible reenable after remote submission
-    buttonDisableSelector: 'button[data-remote][data-disable-with], button[data-remote][data-disable]',
-
-    // Make sure that every Ajax request sends the CSRF token
-    CSRFProtection: function(xhr) {
-      var token = $('meta[name="crumb-token"]').attr('content');
-      if (token) xhr.setRequestHeader('X-CSRF-Token', token);
-    },
-
-    // making sure that all forms have actual up-to-date token(cached forms contain old one)
-    refreshCSRFTokens: function(){
-      var csrfToken = $('meta[name=crumb-token]').attr('content');
-      var csrfParam = $('meta[name=crumb-param]').attr('content');
-      $('form input[name="' + csrfParam + '"]').val(csrfToken);
-    },
-
-    // Triggers an event on an element and returns false if the event result is false
-    fire: function(obj, name, data) {
-      var event = $.Event(name);
-      obj.trigger(event, data);
-      return event.result !== false;
-    },
-
-    // Default confirm dialog, may be overridden with custom confirm dialog in $.hapi.confirm
-    confirm: function(message) {
-      return confirm(message);
-    },
-
-    // Default ajax function, may be overridden with custom function in $.hapi.ajax
-    ajax: function(options) {
-      return $.ajax(options);
-    },
-
-    // Default way to get an element's href. May be overridden at $.hapi.href.
-    href: function(element) {
-      return element.attr('href');
-    },
-
-    // Submits "remote" forms and links with ajax
-    handleRemote: function(element) {
-      var method, url, data, elCrossDomain, crossDomain, withCredentials, dataType, options;
-
-      if (hapi.fire(element, 'ajax:before')) {
-        elCrossDomain = element.data('cross-domain');
-        crossDomain = elCrossDomain === undefined ? null : elCrossDomain;
-        withCredentials = element.data('with-credentials') || null;
-        dataType = element.data('type') || ($.ajaxSettings && $.ajaxSettings.dataType);
-
-        if (element.is('form')) {
-          method = element.attr('method');
-          url = element.attr('action');
-          data = element.serializeArray();
-          // memoized value from clicked submit button
-          var button = element.data('ujs:submit-button');
-          if (button) {
-            data.push(button);
-            element.data('ujs:submit-button', null);
-          }
-        } else if (element.is(hapi.inputChangeSelector)) {
-          method = element.data('method');
-          url = element.data('url');
-          data = element.serialize();
-          if (element.data('params')) data = data + "&" + element.data('params');
-        } else if (element.is(hapi.buttonClickSelector)) {
-          method = element.data('method') || 'get';
-          url = element.data('url');
-          data = element.serialize();
-          if (element.data('params')) data = data + "&" + element.data('params');
-        } else {
-          method = element.data('method');
-          url = hapi.href(element);
-          data = element.data('params') || null;
-        }
-
-        options = {
-          type: method || 'GET', data: data, dataType: dataType,
-          // stopping the "ajax:beforeSend" event will cancel the ajax request
-          beforeSend: function(xhr, settings) {
-            if (settings.dataType === undefined) {
-              xhr.setRequestHeader('accept', '*/*;q=0.5, ' + settings.accepts.script);
-            }
-            if (hapi.fire(element, 'ajax:beforeSend', [xhr, settings])) {
-              element.trigger('ajax:send', xhr);
-            } else {
-              return false;
-            }
-          },
-          success: function(data, status, xhr) {
-            element.trigger('ajax:success', [data, status, xhr]);
-          },
-          complete: function(xhr, status) {
-            element.trigger('ajax:complete', [xhr, status]);
-          },
-          error: function(xhr, status, error) {
-            element.trigger('ajax:error', [xhr, status, error]);
-          },
-          crossDomain: crossDomain
-        };
-
-        // There is no withCredentials for IE6-8 when
-        // "Enable native XMLHTTP support" is disabled
-        if (withCredentials) {
-          options.xhrFields = {
-            withCredentials: withCredentials
-          };
-        }
-
-        // Only pass url to `ajax` options if not blank
-        if (url) { options.url = url; }
-
-        return hapi.ajax(options);
-      } else {
-        return false;
-      }
-    },
-
-    // Handles "data-method" on links such as:
-    // <a href="/users/5" data-method="delete" rel="nofollow" data-confirm="Are you sure?">Delete</a>
-    handleMethod: function(link) {
-      var href = hapi.href(link),
-        method = link.data('method'),
-        target = link.attr('target'),
-        csrfToken = $('meta[name=csrf-token]').attr('content'),
-        csrfParam = $('meta[name=csrf-param]').attr('content'),
-        form = $('<form method="post" action="' + href + '"></form>'),
-        metadataInput = '<input name="_method" value="' + method + '" type="hidden" />';
-
-      if (csrfParam !== undefined && csrfToken !== undefined) {
-        metadataInput += '<input name="' + csrfParam + '" value="' + csrfToken + '" type="hidden" />';
-      }
-
-      if (target) { form.attr('target', target); }
-
-      form.hide().append(metadataInput).appendTo('body');
-      form.submit();
-    },
-
-    // Helper function that returns form elements that match the specified CSS selector
-    // If form is actually a "form" element this will return associated elements outside the from that have
-    // the html form attribute set
-    formElements: function(form, selector) {
-      return form.is('form') ? $(form[0].elements).filter(selector) : form.find(selector);
-    },
-
-    /* Disables form elements:
-      - Caches element value in 'ujs:enable-with' data store
-      - Replaces element text with value of 'data-disable-with' attribute
-      - Sets disabled property to true
-    */
-    disableFormElements: function(form) {
-      hapi.formElements(form, hapi.disableSelector).each(function() {
-        hapi.disableFormElement($(this));
-      });
-    },
-
-    disableFormElement: function(element) {
-      var method, replacement;
-
-      method = element.is('button') ? 'html' : 'val';
-      replacement = element.data('disable-with');
-
-      element.data('ujs:enable-with', element[method]());
-      if (replacement !== undefined) {
-        element[method](replacement);
-      }
-
-      element.prop('disabled', true);
-    },
-
-    /* Re-enables disabled form elements:
-      - Replaces element text with cached value from 'ujs:enable-with' data store (created in `disableFormElements`)
-      - Sets disabled property to false
-    */
-    enableFormElements: function(form) {
-      hapi.formElements(form, hapi.enableSelector).each(function() {
-        hapi.enableFormElement($(this));
-      });
-    },
-
-    enableFormElement: function(element) {
-      var method = element.is('button') ? 'html' : 'val';
-      if (element.data('ujs:enable-with')) element[method](element.data('ujs:enable-with'));
-      element.prop('disabled', false);
-    },
-
-   /* For 'data-confirm' attribute:
-      - Fires `confirm` event
-      - Shows the confirmation dialog
-      - Fires the `confirm:complete` event
-
-      Returns `true` if no function stops the chain and user chose yes; `false` otherwise.
-      Attaching a handler to the element's `confirm` event that returns a `falsy` value cancels the confirmation dialog.
-      Attaching a handler to the element's `confirm:complete` event that returns a `falsy` value makes this function
-      return false. The `confirm:complete` event is fired whether or not the user answered true or false to the dialog.
-   */
-    allowAction: function(element) {
-      var message = element.data('confirm'),
-          answer = false, callback;
-      if (!message) { return true; }
-
-      if (hapi.fire(element, 'confirm')) {
-        answer = hapi.confirm(message);
-        callback = hapi.fire(element, 'confirm:complete', [answer]);
-      }
-      return answer && callback;
-    },
-
-    // Helper function which checks for blank inputs in a form that match the specified CSS selector
-    blankInputs: function(form, specifiedSelector, nonBlank) {
-      var inputs = $(), input, valueToCheck,
-          selector = specifiedSelector || 'input,textarea',
-          allInputs = form.find(selector);
-
-      allInputs.each(function() {
-        input = $(this);
-        valueToCheck = input.is('input[type=checkbox],input[type=radio]') ? input.is(':checked') : input.val();
-        // If nonBlank and valueToCheck are both truthy, or nonBlank and valueToCheck are both falsey
-        if (!valueToCheck === !nonBlank) {
-
-          // Don't count unchecked required radio if other radio with same name is checked
-          if (input.is('input[type=radio]') && allInputs.filter('input[type=radio]:checked[name="' + input.attr('name') + '"]').length) {
-            return true; // Skip to next input
-          }
-
-          inputs = inputs.add(input);
-        }
-      });
-      return inputs.length ? inputs : false;
-    },
-
-    // Helper function which checks for non-blank inputs in a form that match the specified CSS selector
-    nonBlankInputs: function(form, specifiedSelector) {
-      return hapi.blankInputs(form, specifiedSelector, true); // true specifies nonBlank
-    },
-
-    // Helper function, needed to provide consistent behavior in IE
-    stopEverything: function(e) {
-      $(e.target).trigger('ujs:everythingStopped');
-      e.stopImmediatePropagation();
-      return false;
-    },
-
-    //  replace element's html with the 'data-disable-with' after storing original html
-    //  and prevent clicking on it
-    disableElement: function(element) {
-      var replacement = element.data('disable-with');
-
-      element.data('ujs:enable-with', element.html()); // store enabled state
-      if (replacement !== undefined) {
-        element.html(replacement);
-      }
-
-      element.bind('click.hapiDisable', function(e) { // prevent further clicking
-        return hapi.stopEverything(e);
-      });
-    },
-
-    // restore element to its original state which was disabled by 'disableElement' above
-    enableElement: function(element) {
-      if (element.data('ujs:enable-with') !== undefined) {
-        element.html(element.data('ujs:enable-with')); // set to old enabled state
-        element.removeData('ujs:enable-with'); // clean up cache
-      }
-      element.unbind('click.hapiDisable'); // enable element
+    // Cut down on the number of issues from people inadvertently including jquery_ujs twice
+    // by detecting and raising an error when it happens.
+    if ( $.hapi !== undefined ) {
+        $.error('jquery-ujs has already been loaded!');
     }
-  };
 
-  if (hapi.fire($document, 'hapi:attachBindings')) {
+    // Shorthand to make it a little easier to call public hapi functions from within hapi.js
+    var hapi;
+    var $document = $(document);
 
-    $.ajaxPrefilter(function(options, originalOptions, xhr){ if ( !options.crossDomain ) { hapi.CSRFProtection(xhr); }});
+    $.hapi = hapi = {
+        // Link elements bound by jquery-ujs
+        linkClickSelector: 'a[data-confirm], a[data-method], a[data-remote], a[data-disable-with], a[data-disable]',
 
-    $document.delegate(hapi.linkDisableSelector, 'ajax:complete', function() {
-        hapi.enableElement($(this));
-    });
+        // Button elements bound by jquery-ujs
+        buttonClickSelector: 'button[data-remote], button[data-confirm]',
 
-    $document.delegate(hapi.buttonDisableSelector, 'ajax:complete', function() {
-        hapi.enableFormElement($(this));
-    });
+        // Select elements bound by jquery-ujs
+        inputChangeSelector: 'select[data-remote], input[data-remote], textarea[data-remote]',
 
-    $document.delegate(hapi.linkClickSelector, 'click.hapi', function(e) {
-      var link = $(this), method = link.data('method'), data = link.data('params'), metaClick = e.metaKey || e.ctrlKey;
-      if (!hapi.allowAction(link)) return hapi.stopEverything(e);
+        // Form elements bound by jquery-ujs
+        formSubmitSelector: 'form',
 
-      if (!metaClick && link.is(hapi.linkDisableSelector)) hapi.disableElement(link);
+        // Form input elements bound by jquery-ujs
+        formInputClickSelector: 'form input[type=submit], form input[type=image], form button[type=submit], form button:not([type]), input[type=submit][form], input[type=image][form], button[type=submit][form], button[form]:not([type])',
 
-      if (link.data('remote') !== undefined) {
-        if (metaClick && (!method || method === 'GET') && !data) { return true; }
+        // Form input elements disabled during form submission
+        disableSelector: 'input[data-disable-with]:enabled, button[data-disable-with]:enabled, textarea[data-disable-with]:enabled, input[data-disable]:enabled, button[data-disable]:enabled, textarea[data-disable]:enabled',
 
-        var handleRemote = hapi.handleRemote(link);
-        // response from hapi.handleRemote() will either be false or a deferred object promise.
-        if (handleRemote === false) {
-          hapi.enableElement(link);
-        } else {
-          handleRemote.error( function() { hapi.enableElement(link); } );
+        // Form input elements re-enabled after form submission
+        enableSelector: 'input[data-disable-with]:disabled, button[data-disable-with]:disabled, textarea[data-disable-with]:disabled, input[data-disable]:disabled, button[data-disable]:disabled, textarea[data-disable]:disabled',
+
+        // Form required input elements
+        requiredInputSelector: 'input[name][required]:not([disabled]),textarea[name][required]:not([disabled])',
+
+        // Form file input elements
+        fileInputSelector: 'input[type=file]',
+
+        // Link onClick disable selector with possible reenable after remote submission
+        linkDisableSelector: 'a[data-disable-with], a[data-disable]',
+
+        // Button onClick disable selector with possible reenable after remote submission
+        buttonDisableSelector: 'button[data-remote][data-disable-with], button[data-remote][data-disable]',
+
+        // Make sure that every Ajax request sends the CSRF token
+        CSRFProtection: function (xhr) {
+            var token = $('meta[name="crumb-token"]').attr('content');
+            if ( token ) {
+                xhr.setRequestHeader('X-CSRF-Token', token);
+            }
+        },
+
+        // making sure that all forms have actual up-to-date token(cached forms contain old one)
+        refreshCSRFTokens: function () {
+            var csrfToken = $('meta[name=crumb-token]').attr('content');
+            var csrfParam = $('meta[name=crumb-param]').attr('content');
+            $('form input[name="' + csrfParam + '"]').val(csrfToken);
+        },
+
+        // Triggers an event on an element and returns false if the event result is false
+        fire: function (obj, name, data) {
+            var event = $.Event(name);
+            obj.trigger(event, data);
+            return event.result !== false;
+        },
+
+        // Default confirm dialog, may be overridden with custom confirm dialog in $.hapi.confirm
+        confirm: function (message) {
+            return confirm(message);
+        },
+
+        // Default ajax function, may be overridden with custom function in $.hapi.ajax
+        ajax: function (options) {
+            return $.ajax(options);
+        },
+
+        // Default way to get an element's href. May be overridden at $.hapi.href.
+        href: function (element) {
+            return element.attr('href');
+        },
+
+        // Submits "remote" forms and links with ajax
+        handleRemote: function (element) {
+            var method, url, data, elCrossDomain, crossDomain, withCredentials, dataType, options;
+
+            if ( hapi.fire(element, 'ajax:before') ) {
+                elCrossDomain = element.data('cross-domain');
+                crossDomain = elCrossDomain === undefined ? null : elCrossDomain;
+                withCredentials = element.data('with-credentials') || null;
+                dataType = element.data('type') || ($.ajaxSettings && $.ajaxSettings.dataType);
+
+                if ( element.is('form') ) {
+                    method = element.attr('method');
+                    url = element.attr('action');
+                    data = element.serializeArray();
+                    // memoized value from clicked submit button
+                    var button = element.data('ujs:submit-button');
+                    if ( button ) {
+                        data.push(button);
+                        element.data('ujs:submit-button', null);
+                    }
+                }
+                else if ( element.is(hapi.inputChangeSelector) ) {
+                    method = element.data('method');
+                    url = element.data('url');
+                    data = element.serialize();
+                    if ( element.data('params') ) {
+                        data = data + "&" + element.data('params');
+                    }
+                }
+                else if ( element.is(hapi.buttonClickSelector) ) {
+                    method = element.data('method') || 'get';
+                    url = element.data('url');
+                    data = element.serialize();
+                    if ( element.data('params') ) {
+                        data = data + "&" + element.data('params');
+                    }
+                }
+                else {
+                    method = element.data('method');
+                    url = hapi.href(element);
+                    data = element.data('params') || null;
+                }
+
+                options = {
+                    type: method || 'GET', data: data, dataType: dataType,
+                    // stopping the "ajax:beforeSend" event will cancel the ajax request
+                    beforeSend: function (xhr, settings) {
+                        if ( settings.dataType === undefined ) {
+                            xhr.setRequestHeader('accept', '*/*;q=0.5, ' + settings.accepts.script);
+                        }
+                        if ( hapi.fire(element, 'ajax:beforeSend', [xhr, settings]) ) {
+                            element.trigger('ajax:send', xhr);
+                        }
+                        else {
+                            return false;
+                        }
+                    },
+                    success: function (data, status, xhr) {
+                        element.trigger('ajax:success', [data, status, xhr]);
+                    },
+                    complete: function (xhr, status) {
+                        element.trigger('ajax:complete', [xhr, status]);
+                    },
+                    error: function (xhr, status, error) {
+                        element.trigger('ajax:error', [xhr, status, error]);
+                    },
+                    crossDomain: crossDomain
+                };
+
+                // There is no withCredentials for IE6-8 when
+                // "Enable native XMLHTTP support" is disabled
+                if ( withCredentials ) {
+                    options.xhrFields = {
+                        withCredentials: withCredentials
+                    };
+                }
+
+                // Only pass url to `ajax` options if not blank
+                if ( url ) {
+                    options.url = url;
+                }
+
+                return hapi.ajax(options);
+            }
+            else {
+                return false;
+            }
+        },
+
+        // Handles "data-method" on links such as:
+        // <a href="/users/5" data-method="delete" rel="nofollow" data-confirm="Are you sure?">Delete</a>
+        handleMethod: function (link) {
+            var href = hapi.href(link),
+                method = link.data('method'),
+                target = link.attr('target'),
+                csrfToken = $('meta[name=crumb-token]').attr('content'),
+                csrfParam = $('meta[name=crumb-param]').attr('content'),
+                form = $('<form method="post" action="' + href + '"></form>'),
+                metadataInput = '<input name="_method" value="' + method + '" type="hidden" />';
+
+            if ( csrfParam !== undefined && csrfToken !== undefined ) {
+                metadataInput += '<input name="' + csrfParam + '" value="' + csrfToken + '" type="hidden" />';
+            }
+
+            if ( target ) {
+                form.attr('target', target);
+            }
+
+            form.hide().append(metadataInput).appendTo('body');
+            form.submit();
+        },
+
+        // Helper function that returns form elements that match the specified CSS selector
+        // If form is actually a "form" element this will return associated elements outside the from that have
+        // the html form attribute set
+        formElements: function (form, selector) {
+            return form.is('form') ? $(form[0].elements).filter(selector) : form.find(selector);
+        },
+
+        /* Disables form elements:
+         - Caches element value in 'ujs:enable-with' data store
+         - Replaces element text with value of 'data-disable-with' attribute
+         - Sets disabled property to true
+         */
+        disableFormElements: function (form) {
+            hapi.formElements(form, hapi.disableSelector).each(function () {
+                hapi.disableFormElement($(this));
+            });
+        },
+
+        disableFormElement: function (element) {
+            var method, replacement;
+
+            method = element.is('button') ? 'html' : 'val';
+            replacement = element.data('disable-with');
+
+            element.data('ujs:enable-with', element[method]());
+            if ( replacement !== undefined ) {
+                element[method](replacement);
+            }
+
+            element.prop('disabled', true);
+        },
+
+        /* Re-enables disabled form elements:
+         - Replaces element text with cached value from 'ujs:enable-with' data store (created in `disableFormElements`)
+         - Sets disabled property to false
+         */
+        enableFormElements: function (form) {
+            hapi.formElements(form, hapi.enableSelector).each(function () {
+                hapi.enableFormElement($(this));
+            });
+        },
+
+        enableFormElement: function (element) {
+            var method = element.is('button') ? 'html' : 'val';
+            if ( element.data('ujs:enable-with') ) {
+                element[method](element.data('ujs:enable-with'));
+            }
+            element.prop('disabled', false);
+        },
+
+        /* For 'data-confirm' attribute:
+         - Fires `confirm` event
+         - Shows the confirmation dialog
+         - Fires the `confirm:complete` event
+
+         Returns `true` if no function stops the chain and user chose yes; `false` otherwise.
+         Attaching a handler to the element's `confirm` event that returns a `falsy` value cancels the confirmation dialog.
+         Attaching a handler to the element's `confirm:complete` event that returns a `falsy` value makes this function
+         return false. The `confirm:complete` event is fired whether or not the user answered true or false to the dialog.
+         */
+        allowAction: function (element) {
+            var message = element.data('confirm'),
+                answer = false, callback;
+            if ( !message ) {
+                return true;
+            }
+
+            if ( hapi.fire(element, 'confirm') ) {
+                answer = hapi.confirm(message);
+                callback = hapi.fire(element, 'confirm:complete', [answer]);
+            }
+            return answer && callback;
+        },
+
+        // Helper function which checks for blank inputs in a form that match the specified CSS selector
+        blankInputs: function (form, specifiedSelector, nonBlank) {
+            var inputs = $(), input, valueToCheck,
+                selector = specifiedSelector || 'input,textarea',
+                allInputs = form.find(selector);
+
+            allInputs.each(function () {
+                input = $(this);
+                valueToCheck = input.is('input[type=checkbox],input[type=radio]') ? input.is(':checked') : input.val();
+                // If nonBlank and valueToCheck are both truthy, or nonBlank and valueToCheck are both falsey
+                if ( !valueToCheck === !nonBlank ) {
+
+                    // Don't count unchecked required radio if other radio with same name is checked
+                    if ( input.is('input[type=radio]') && allInputs.filter('input[type=radio]:checked[name="' + input.attr('name') + '"]').length ) {
+                        return true; // Skip to next input
+                    }
+
+                    inputs = inputs.add(input);
+                }
+            });
+            return inputs.length ? inputs : false;
+        },
+
+        // Helper function which checks for non-blank inputs in a form that match the specified CSS selector
+        nonBlankInputs: function (form, specifiedSelector) {
+            return hapi.blankInputs(form, specifiedSelector, true); // true specifies nonBlank
+        },
+
+        // Helper function, needed to provide consistent behavior in IE
+        stopEverything: function (e) {
+            $(e.target).trigger('ujs:everythingStopped');
+            e.stopImmediatePropagation();
+            return false;
+        },
+
+        //  replace element's html with the 'data-disable-with' after storing original html
+        //  and prevent clicking on it
+        disableElement: function (element) {
+            var replacement = element.data('disable-with');
+
+            element.data('ujs:enable-with', element.html()); // store enabled state
+            if ( replacement !== undefined ) {
+                element.html(replacement);
+            }
+
+            element.bind('click.hapiDisable', function (e) { // prevent further clicking
+                return hapi.stopEverything(e);
+            });
+        },
+
+        // restore element to its original state which was disabled by 'disableElement' above
+        enableElement: function (element) {
+            if ( element.data('ujs:enable-with') !== undefined ) {
+                element.html(element.data('ujs:enable-with')); // set to old enabled state
+                element.removeData('ujs:enable-with'); // clean up cache
+            }
+            element.unbind('click.hapiDisable'); // enable element
         }
-        return false;
+    };
 
-      } else if (link.data('method')) {
-        hapi.handleMethod(link);
-        return false;
-      }
-    });
+    if ( hapi.fire($document, 'hapi:attachBindings') ) {
 
-    $document.delegate(hapi.buttonClickSelector, 'click.hapi', function(e) {
-      var button = $(this);
-      if (!hapi.allowAction(button)) return hapi.stopEverything(e);
+        $.ajaxPrefilter(function (options, originalOptions, xhr) {
+            hapi.CSRFProtection(xhr);
+        });
 
-      if (button.is(hapi.buttonDisableSelector)) hapi.disableFormElement(button);
+        $document.delegate(hapi.linkDisableSelector, 'ajax:complete', function () {
+            hapi.enableElement($(this));
+        });
 
-      var handleRemote = hapi.handleRemote(button);
-      // response from hapi.handleRemote() will either be false or a deferred object promise.
-      if (handleRemote === false) {
-        hapi.enableFormElement(button);
-      } else {
-        handleRemote.error( function() { hapi.enableFormElement(button); } );
-      }
-      return false;
-    });
+        $document.delegate(hapi.buttonDisableSelector, 'ajax:complete', function () {
+            hapi.enableFormElement($(this));
+        });
 
-    $document.delegate(hapi.inputChangeSelector, 'change.hapi', function(e) {
-      var link = $(this);
-      if (!hapi.allowAction(link)) return hapi.stopEverything(e);
+        $document.delegate(hapi.linkClickSelector, 'click.hapi', function (e) {
+            var link = $(this), method = link.data('method'), data = link.data('params'), metaClick = e.metaKey || e.ctrlKey;
+            if ( !hapi.allowAction(link) ) {
+                return hapi.stopEverything(e);
+            }
 
-      hapi.handleRemote(link);
-      return false;
-    });
+            if ( !metaClick && link.is(hapi.linkDisableSelector) ) {
+                hapi.disableElement(link);
+            }
 
-    $document.delegate(hapi.formSubmitSelector, 'submit.hapi', function(e) {
-      var form = $(this),
-        remote = form.data('remote') !== undefined,
-        blankRequiredInputs,
-        nonBlankFileInputs;
+            if ( link.data('remote') !== undefined ) {
+                if ( metaClick && (!method || method === 'GET') && !data ) {
+                    return true;
+                }
 
-      if (!hapi.allowAction(form)) return hapi.stopEverything(e);
+                var handleRemote = hapi.handleRemote(link);
+                // response from hapi.handleRemote() will either be false or a deferred object promise.
+                if ( handleRemote === false ) {
+                    hapi.enableElement(link);
+                }
+                else {
+                    handleRemote.error(function () {
+                        hapi.enableElement(link);
+                    });
+                }
+                return false;
 
-      // skip other logic when required values are missing or file upload is present
-      if (form.attr('novalidate') == undefined) {
-        blankRequiredInputs = hapi.blankInputs(form, hapi.requiredInputSelector);
-        if (blankRequiredInputs && hapi.fire(form, 'ajax:aborted:required', [blankRequiredInputs])) {
-          return hapi.stopEverything(e);
-        }
-      }
+            }
+            else if ( link.data('method') ) {
+                hapi.handleMethod(link);
+                return false;
+            }
+        });
 
-      if (remote) {
-        nonBlankFileInputs = hapi.nonBlankInputs(form, hapi.fileInputSelector);
-        if (nonBlankFileInputs) {
-          // slight timeout so that the submit button gets properly serialized
-          // (make it easy for event handler to serialize form without disabled values)
-          setTimeout(function(){ hapi.disableFormElements(form); }, 13);
-          var aborted = hapi.fire(form, 'ajax:aborted:file', [nonBlankFileInputs]);
+        $document.delegate(hapi.buttonClickSelector, 'click.hapi', function (e) {
+            var button = $(this);
+            if ( !hapi.allowAction(button) ) {
+                return hapi.stopEverything(e);
+            }
 
-          // re-enable form elements if event bindings return false (canceling normal form submission)
-          if (!aborted) { setTimeout(function(){ hapi.enableFormElements(form); }, 13); }
+            if ( button.is(hapi.buttonDisableSelector) ) {
+                hapi.disableFormElement(button);
+            }
 
-          return aborted;
-        }
+            var handleRemote = hapi.handleRemote(button);
+            // response from hapi.handleRemote() will either be false or a deferred object promise.
+            if ( handleRemote === false ) {
+                hapi.enableFormElement(button);
+            }
+            else {
+                handleRemote.error(function () {
+                    hapi.enableFormElement(button);
+                });
+            }
+            return false;
+        });
 
-        hapi.handleRemote(form);
-        return false;
+        $document.delegate(hapi.inputChangeSelector, 'change.hapi', function (e) {
+            var link = $(this);
+            if ( !hapi.allowAction(link) ) {
+                return hapi.stopEverything(e);
+            }
 
-      } else {
-        // slight timeout so that the submit button gets properly serialized
-        setTimeout(function(){ hapi.disableFormElements(form); }, 13);
-      }
-    });
+            hapi.handleRemote(link);
+            return false;
+        });
 
-    $document.delegate(hapi.formInputClickSelector, 'click.hapi', function(event) {
-      var button = $(this);
+        $document.delegate(hapi.formSubmitSelector, 'submit.hapi', function (e) {
+            var form = $(this),
+                remote = form.data('remote') !== undefined,
+                blankRequiredInputs,
+                nonBlankFileInputs;
 
-      if (!hapi.allowAction(button)) return hapi.stopEverything(event);
+            if ( !hapi.allowAction(form) ) {
+                return hapi.stopEverything(e);
+            }
 
-      // register the pressed submit button
-      var name = button.attr('name'),
-        data = name ? {name:name, value:button.val()} : null;
+            // skip other logic when required values are missing or file upload is present
+            if ( form.attr('novalidate') == undefined ) {
+                blankRequiredInputs = hapi.blankInputs(form, hapi.requiredInputSelector);
+                if ( blankRequiredInputs && hapi.fire(form, 'ajax:aborted:required', [blankRequiredInputs]) ) {
+                    return hapi.stopEverything(e);
+                }
+            }
 
-      button.closest('form').data('ujs:submit-button', data);
-    });
+            if ( remote ) {
+                nonBlankFileInputs = hapi.nonBlankInputs(form, hapi.fileInputSelector);
+                if ( nonBlankFileInputs ) {
+                    // slight timeout so that the submit button gets properly serialized
+                    // (make it easy for event handler to serialize form without disabled values)
+                    setTimeout(function () {
+                        hapi.disableFormElements(form);
+                    }, 13);
+                    var aborted = hapi.fire(form, 'ajax:aborted:file', [nonBlankFileInputs]);
 
-    $document.delegate(hapi.formSubmitSelector, 'ajax:send.hapi', function(event) {
-      if (this == event.target) hapi.disableFormElements($(this));
-    });
+                    // re-enable form elements if event bindings return false (canceling normal form submission)
+                    if ( !aborted ) {
+                        setTimeout(function () {
+                            hapi.enableFormElements(form);
+                        }, 13);
+                    }
 
-    $document.delegate(hapi.formSubmitSelector, 'ajax:complete.hapi', function(event) {
-      if (this == event.target) hapi.enableFormElements($(this));
-    });
+                    return aborted;
+                }
 
-    $(function(){
-      hapi.refreshCSRFTokens();
-    });
-  }
+                hapi.handleRemote(form);
+                return false;
 
-})( jQuery );
+            }
+            else {
+                // slight timeout so that the submit button gets properly serialized
+                setTimeout(function () {
+                    hapi.disableFormElements(form);
+                }, 13);
+            }
+        });
+
+        $document.delegate(hapi.formInputClickSelector, 'click.hapi', function (event) {
+            var button = $(this);
+
+            if ( !hapi.allowAction(button) ) {
+                return hapi.stopEverything(event);
+            }
+
+            // register the pressed submit button
+            var name = button.attr('name'),
+                data = name ? {name: name, value: button.val()} : null;
+
+            button.closest('form').data('ujs:submit-button', data);
+        });
+
+        $document.delegate(hapi.formSubmitSelector, 'ajax:send.hapi', function (event) {
+            if ( this == event.target ) {
+                hapi.disableFormElements($(this));
+            }
+        });
+
+        $document.delegate(hapi.formSubmitSelector, 'ajax:complete.hapi', function (event) {
+            if ( this == event.target ) {
+                hapi.enableFormElements($(this));
+            }
+        });
+
+        $(function () {
+            hapi.refreshCSRFTokens();
+        });
+    }
+
+})(jQuery);
