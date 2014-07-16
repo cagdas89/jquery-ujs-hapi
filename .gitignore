@@ -1,8 +1,35 @@
 test/public/vendor/jquery.js
-node_modules
 *.swp
 *.swo
 .#*
 .bundle
 .DS_Store
 *~
+
+.idea
+
+lib-cov
+*.seed
+*.log
+*.csv
+*.dat
+*.out
+*.pid
+*.gz
+
+pids
+logs
+results
+node_modules
+bower_components
+.linker
+
+npm-debug.log
+
+# node-webkit files
+*.exe
+*.dll
+*.pak
+
+# Do not include in source control
+secrets.js
